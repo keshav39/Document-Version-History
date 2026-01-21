@@ -11,7 +11,7 @@ export const suggestVersionAndReleaseNotes = async (
     });
 
     if (!response.ok) {
-      throw new Error('AI suggestion function failed');
+      throw new Error('Failed to fetch AI suggestion');
     }
 
     return await response.json();
