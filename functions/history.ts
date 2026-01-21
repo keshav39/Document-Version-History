@@ -1,15 +1,16 @@
 
 import postgres from 'postgres';
 
-// Initialize SQL connection lazily to handle missing ENV variables gracefully
+// Initialize SQL connection lazily
 let sql: any;
 
 function getSql() {
   if (!sql) {
-    if (!process.env.DATABASE_URL) {
-      throw new Error("DATABASE_URL environment variable is not defined");
+    const dbUrl = process.env.DATABASE_URL;
+    if (!dbUrl) {
+      throw new Error("DATABASE_URL environment variable is not defined in Netlify settings.");
     }
-    sql = postgres(process.env.DATABASE_URL, {
+    sql = postgres(dbUrl, {
       ssl: 'require',
       connect_timeout: 10,
     });
@@ -19,9 +20,11 @@ function getSql() {
 
 export const handler = async (event: any) => {
   const method = event.httpMethod;
-  const db = getSql();
 
   try {
+    // Ensure the database connection is initialized within the try block
+    const db = getSql();
+
     if (method === 'GET') {
       const entries = await db`
         SELECT 
@@ -42,7 +45,10 @@ export const handler = async (event: any) => {
       `;
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*' 
+        },
         body: JSON.stringify(entries),
       };
     }
@@ -50,23 +56,11 @@ export const handler = async (event: any) => {
     if (method === 'POST') {
       const data = JSON.parse(event.body);
       
-      // Detailed logging for debugging
-      console.log("Attempting to insert entry:", data.RICEFWID, "v" + data.version);
+      console.log("Inserting entry:", data.RICEFWID);
 
       await db`
         INSERT INTO history_entries (
-          id, 
-          ricefw_id, 
-          fs_name, 
-          transaction_id, 
-          region, 
-          status, 
-          version, 
-          release_reference, 
-          author, 
-          change_description, 
-          timestamp, 
-          document_date
+          id, ricefw_id, fs_name, transaction_id, region, status, version, release_reference, author, change_description, timestamp, document_date
         ) VALUES (
           ${data.id}, 
           ${data.RICEFWID}, 
@@ -78,14 +72,17 @@ export const handler = async (event: any) => {
           ${data.releaseReference || ''}, 
           ${data.author || 'Unknown'}, 
           ${data.changeDescription || ''}, 
-          ${BigInt(data.timestamp)}, 
-          ${data.documentDate ? BigInt(data.documentDate) : BigInt(data.timestamp)}
+          ${BigInt(data.timestamp || Date.now())}, 
+          ${data.documentDate ? BigInt(data.documentDate) : BigInt(data.timestamp || Date.now())}
         )
       `;
 
       return {
         statusCode: 201,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*' 
+        },
         body: JSON.stringify({ message: 'Entry saved successfully' }),
       };
     }
@@ -99,23 +96,31 @@ export const handler = async (event: any) => {
       `;
       return {
         statusCode: 200,
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*' 
+        },
         body: JSON.stringify({ message: 'Status updated successfully' }),
       };
     }
 
-    return { statusCode: 405, body: 'Method Not Allowed' };
+    return { 
+      statusCode: 405, 
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+    };
   } catch (error: any) {
-    // CRITICAL: Log the actual error to Netlify function logs
-    console.error('Database Operation Failed:', error.message);
-    console.error('Full Error Object:', error);
+    console.error('Function Error:', error.message);
 
     return {
       statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*' 
+      },
       body: JSON.stringify({ 
-        error: error.message,
-        detail: "Ensure your database has the 'document_date' column (BIGINT) and table 'history_entries' exists."
+        error: error.message || "Internal Server Error",
+        detail: "Check if DATABASE_URL is set and the 'document_date' column (BIGINT) exists in your 'history_entries' table."
       }),
     };
   }

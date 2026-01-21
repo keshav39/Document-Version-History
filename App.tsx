@@ -22,6 +22,7 @@ const App: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await fetch('/.netlify/functions/history');
+      
       if (response.ok) {
         const data = await response.json();
         const formatted = data.map((d: any) => ({
@@ -32,12 +33,25 @@ const App: React.FC = () => {
         }));
         setEntries(formatted);
       } else {
-        const errorData = await response.json();
-        setErrorMessage(`Failed to load: ${errorData.error || 'Unknown error'}`);
+        // Clone the response so we can read it twice if needed
+        const clonedResponse = response.clone();
+        let errorMsg = `Server error ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.detail || errorMsg;
+        } catch (e) {
+          try {
+            const text = await clonedResponse.text();
+            if (text) errorMsg = text.slice(0, 100);
+          } catch (textError) {
+            console.error("Could not read error text", textError);
+          }
+        }
+        setErrorMessage(`Failed to load: ${errorMsg}`);
       }
     } catch (e) {
-      console.error("Failed to fetch history", e);
-      setErrorMessage("Network error: Could not connect to the database function.");
+      console.error("Fetch error:", e);
+      setErrorMessage("Network error: Check your internet connection or if the backend functions are deployed.");
     } finally {
       setIsLoading(false);
     }
@@ -56,14 +70,23 @@ const App: React.FC = () => {
         setEntries(prev => [entry, ...prev]);
         setActiveView(ViewMode.DASHBOARD);
       } else {
-        const errorData = await response.json();
-        const msg = errorData.error || "Database rejection";
-        setErrorMessage(`Save Failed: ${msg}`);
-        alert(`Save Failed: ${msg}\n\nCheck if the 'document_date' column exists in your database.`);
+        const clonedResponse = response.clone();
+        let errorMsg = "Database rejection";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorData.detail || errorMsg;
+        } catch (e) {
+          try {
+            const text = await clonedResponse.text();
+            if (text) errorMsg = text.slice(0, 200);
+          } catch (textError) {}
+        }
+        setErrorMessage(`Save Failed: ${errorMsg}`);
+        alert(`Save Failed: ${errorMsg}\n\nVerify that the 'document_date' column exists in your table.`);
       }
     } catch (e: any) {
-      console.error("Error saving entry", e);
-      setErrorMessage("Network error while saving.");
+      console.error("Save error:", e);
+      setErrorMessage("Network error: Could not reach the server function to save data.");
     }
   };
 
@@ -78,11 +101,22 @@ const App: React.FC = () => {
       if (response.ok) {
         setEntries(prev => prev.map(e => e.id === id ? { ...e, Status: newStatus } : e));
       } else {
-        const errorData = await response.json();
-        alert(`Update Failed: ${errorData.error}`);
+        const clonedResponse = response.clone();
+        let errorMsg = "Update failed";
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.error || errorMsg;
+        } catch (e) {
+          try {
+            const text = await clonedResponse.text();
+            if (text) errorMsg = text.slice(0, 100);
+          } catch (textError) {}
+        }
+        alert(`Update Failed: ${errorMsg}`);
       }
     } catch (e) {
-      console.error("Error updating status", e);
+      console.error("Status update error:", e);
+      alert("Network error updating status.");
     }
   };
 
