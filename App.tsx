@@ -5,15 +5,15 @@ import Dashboard from './components/Dashboard';
 import HistoryLog from './components/HistoryLog';
 import AddEntryForm from './components/AddEntryForm';
 import Sidebar from './components/Sidebar';
-import { Layout, ClipboardList, History, PlusCircle, BarChart3, Info, Loader2 } from 'lucide-react';
+import { Layout, ClipboardList, History, PlusCircle, BarChart3, Info, Loader2, AlertCircle } from 'lucide-react';
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [activeView, setActiveView] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Load data from API
   useEffect(() => {
     fetchData();
   }, []);
@@ -31,15 +31,20 @@ const App: React.FC = () => {
           Status: Boolean(d.Status)
         }));
         setEntries(formatted);
+      } else {
+        const errorData = await response.json();
+        setErrorMessage(`Failed to load: ${errorData.error || 'Unknown error'}`);
       }
     } catch (e) {
       console.error("Failed to fetch history", e);
+      setErrorMessage("Network error: Could not connect to the database function.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const addEntry = async (entry: HistoryEntry) => {
+    setErrorMessage(null);
     try {
       const response = await fetch('/.netlify/functions/history', {
         method: 'POST',
@@ -51,11 +56,14 @@ const App: React.FC = () => {
         setEntries(prev => [entry, ...prev]);
         setActiveView(ViewMode.DASHBOARD);
       } else {
-        alert("Failed to save to database.");
+        const errorData = await response.json();
+        const msg = errorData.error || "Database rejection";
+        setErrorMessage(`Save Failed: ${msg}`);
+        alert(`Save Failed: ${msg}\n\nCheck if the 'document_date' column exists in your database.`);
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Error saving entry", e);
-      alert("Network error while saving.");
+      setErrorMessage("Network error while saving.");
     }
   };
 
@@ -70,7 +78,8 @@ const App: React.FC = () => {
       if (response.ok) {
         setEntries(prev => prev.map(e => e.id === id ? { ...e, Status: newStatus } : e));
       } else {
-        alert("Failed to update status.");
+        const errorData = await response.json();
+        alert(`Update Failed: ${errorData.error}`);
       }
     } catch (e) {
       console.error("Error updating status", e);
@@ -109,24 +118,28 @@ const App: React.FC = () => {
       );
     }
 
-    switch (activeView) {
-      case ViewMode.DASHBOARD:
-        return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} onUpdateStatus={updateEntryStatus} />;
-      case ViewMode.HISTORY:
-        return <HistoryLog entries={entries} />;
-      case ViewMode.ADD_ENTRY:
-        return <AddEntryForm onAdd={addEntry} existingSummaries={documentSummaries} />;
-      case ViewMode.REPORTS:
-        return (
+    return (
+      <div className="space-y-6">
+        {errorMessage && (
+          <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700 animate-in fade-in slide-in-from-top-2">
+            <AlertCircle size={20} className="shrink-0" />
+            <div className="text-sm font-medium">{errorMessage}</div>
+            <button onClick={() => setErrorMessage(null)} className="ml-auto text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100">Dismiss</button>
+          </div>
+        )}
+
+        {activeView === ViewMode.DASHBOARD && <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} onUpdateStatus={updateEntryStatus} />}
+        {activeView === ViewMode.HISTORY && <HistoryLog entries={entries} />}
+        {activeView === ViewMode.ADD_ENTRY && <AddEntryForm onAdd={addEntry} existingSummaries={documentSummaries} />}
+        {activeView === ViewMode.REPORTS && (
           <div className="p-8 flex flex-col items-center justify-center text-slate-400 h-full">
             <BarChart3 size={64} className="mb-4 opacity-20" />
             <h2 className="text-xl font-medium">Reporting Module</h2>
             <p>Advanced release analytics coming soon.</p>
           </div>
-        );
-      default:
-        return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} onUpdateStatus={updateEntryStatus} />;
-    }
+        )}
+      </div>
+    );
   };
 
   return (
