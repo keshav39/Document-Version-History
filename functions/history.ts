@@ -1,13 +1,12 @@
 
 import postgres from 'postgres';
 
-// Initialize SQL connection lazily to handle missing ENV variables gracefully
 let sql: any;
 
 function getSql() {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    throw new Error("DATABASE_URL environment variable is missing in Netlify settings.");
+    throw new Error("DATABASE_URL is not configured. Please add it to your environment variables.");
   }
   
   if (!sql) {
@@ -23,8 +22,6 @@ function getSql() {
 
 export const handler = async (event: any) => {
   const method = event.httpMethod;
-  
-  // Standard headers for all responses
   const headers = { 
     'Content-Type': 'application/json',
     'Access-Control-Allow-Origin': '*',
@@ -32,7 +29,6 @@ export const handler = async (event: any) => {
     'Access-Control-Allow-Headers': 'Content-Type'
   };
 
-  // Handle CORS preflight
   if (method === 'OPTIONS') {
     return { statusCode: 204, headers };
   }
@@ -67,7 +63,7 @@ export const handler = async (event: any) => {
       } catch (dbError: any) {
         if (dbError.message.includes('does not exist')) {
           return {
-            statusCode: 200, // Return empty list instead of 500 if table missing
+            statusCode: 200,
             headers,
             body: JSON.stringify([]),
           };
@@ -78,8 +74,6 @@ export const handler = async (event: any) => {
 
     if (method === 'POST') {
       const data = JSON.parse(event.body);
-      console.log("POST: Inserting", data.RICEFWID);
-
       await db`
         INSERT INTO history_entries (
           id, ricefw_id, fs_name, transaction_id, region, status, version, release_reference, author, change_description, timestamp, document_date
@@ -98,11 +92,10 @@ export const handler = async (event: any) => {
           ${data.documentDate ? BigInt(data.documentDate) : BigInt(data.timestamp || Date.now())}
         )
       `;
-
       return {
         statusCode: 201,
         headers,
-        body: JSON.stringify({ message: 'Entry saved successfully' }),
+        body: JSON.stringify({ message: 'Success' }),
       };
     }
 
@@ -116,7 +109,7 @@ export const handler = async (event: any) => {
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ message: 'Status updated successfully' }),
+        body: JSON.stringify({ message: 'Updated' }),
       };
     }
 
@@ -126,14 +119,13 @@ export const handler = async (event: any) => {
       body: JSON.stringify({ error: `Method ${method} Not Allowed` }) 
     };
   } catch (error: any) {
-    console.error('Function Execution Error:', error.message);
-
+    console.error('API Error:', error.message);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: error.message || "Internal Server Error",
-        detail: "This usually means the database URL is wrong or the table schema is missing the 'document_date' column."
+        error: error.message || "Database request failed",
+        detail: "Ensure DATABASE_URL is correct and the 'history_entries' table is migrated."
       }),
     };
   }
