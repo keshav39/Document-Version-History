@@ -5,41 +5,62 @@ import Dashboard from './components/Dashboard';
 import HistoryLog from './components/HistoryLog';
 import AddEntryForm from './components/AddEntryForm';
 import Sidebar from './components/Sidebar';
-import { Layout, ClipboardList, History, PlusCircle, BarChart3, Info } from 'lucide-react';
-
-const STORAGE_KEY = 'specver_history_data';
+import { Layout, ClipboardList, History, PlusCircle, BarChart3, Info, Loader2 } from 'lucide-react';
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
   const [activeView, setActiveView] = useState<ViewMode>(ViewMode.DASHBOARD);
   const [isSidebarOpen, setSidebarOpen] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Load data
+  // Load data from API
   useEffect(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
+    const fetchData = async () => {
       try {
-        setEntries(JSON.parse(saved));
+        setIsLoading(true);
+        const response = await fetch('/.netlify/functions/history');
+        if (response.ok) {
+          const data = await response.json();
+          // Ensure numbers/booleans are correctly typed if needed
+          const formatted = data.map((d: any) => ({
+            ...d,
+            timestamp: Number(d.timestamp),
+            Status: Boolean(d.Status)
+          }));
+          setEntries(formatted);
+        }
       } catch (e) {
-        console.error("Failed to parse storage", e);
+        console.error("Failed to fetch history", e);
+      } finally {
+        setIsLoading(false);
       }
-    }
+    };
+    fetchData();
   }, []);
 
-  // Save data
-  useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
-  }, [entries]);
+  const addEntry = async (entry: HistoryEntry) => {
+    try {
+      const response = await fetch('/.netlify/functions/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      });
 
-  const addEntry = (entry: HistoryEntry) => {
-    setEntries(prev => [entry, ...prev]);
-    setActiveView(ViewMode.DASHBOARD);
+      if (response.ok) {
+        setEntries(prev => [entry, ...prev]);
+        setActiveView(ViewMode.DASHBOARD);
+      } else {
+        alert("Failed to save to database.");
+      }
+    } catch (e) {
+      console.error("Error saving entry", e);
+      alert("Network error while saving.");
+    }
   };
 
   const documentSummaries = useMemo((): DocumentSummary[] => {
     const map = new Map<string, DocumentSummary>();
     
-    // Process entries from oldest to newest to ensure current values are truly the latest
     [...entries].reverse().forEach(entry => {
       map.set(entry.RICEFWID, {
         RICEFWID: entry.RICEFWID,
@@ -58,6 +79,15 @@ const App: React.FC = () => {
   }, [entries]);
 
   const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="h-96 flex flex-col items-center justify-center text-slate-400">
+          <Loader2 className="animate-spin mb-4" size={32} />
+          <p className="text-sm font-medium">Synchronizing with Cloud Registry...</p>
+        </div>
+      );
+    }
+
     switch (activeView) {
       case ViewMode.DASHBOARD:
         return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} />;

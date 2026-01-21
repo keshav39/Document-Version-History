@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { ViewMode } from '../types';
-import { LayoutGrid, History, FilePlus2, PieChart, ShieldCheck, ChevronLeft, ChevronRight } from 'lucide-react';
+import { LayoutGrid, History, FilePlus2, PieChart, ShieldCheck, ChevronLeft, ChevronRight, Cloud } from 'lucide-react';
 
 interface SidebarProps {
   activeView: ViewMode;
@@ -51,8 +51,8 @@ const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, isOpen, to
 
       <div className="p-6 border-t border-slate-800">
         <div className="flex items-center gap-3 text-slate-400 text-xs">
-          <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-          {isOpen && <span>Local Storage Active</span>}
+          <Cloud size={14} className="text-emerald-500" />
+          {isOpen && <span>Neon Cloud Database</span>}
         </div>
       </div>
 
