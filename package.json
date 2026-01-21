@@ -5,7 +5,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "detlify",
+    "dev": "netlify",
     "build": "tsc && netlify dev",
     "preview": "netlify preview"
   },
