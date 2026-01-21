@@ -5,24 +5,22 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "dev": "netlify dev",
+    "build": "tsc && netlify build",
+    "preview": "netlify preview"
   },
   "dependencies": {
-    "@google/genai": "^1.38.0",
-    "@neondatabase/serverless": "^0.10.4",
-    "lucide-react": "^0.562.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
+    "lucide-react": "^0.562.0",
+    "@google/genai": "^1.38.0",
     "postgres": "^3.4.4"
   },
   "devDependencies": {
     "@types/node": "^22.10.7",
     "@types/react": "^19.2.3",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7"
+    "netlify-cli": "^17.37.2",
+    "typescript": "^5.7.3"
   }
 }

@@ -5,8 +5,7 @@ import Dashboard from './components/Dashboard';
 import HistoryLog from './components/HistoryLog';
 import AddEntryForm from './components/AddEntryForm';
 import Sidebar from './components/Sidebar';
-import { Loader2, AlertCircle, Database, ServerCrash } from 'lucide-react';
-import { neon } from '@neondatabase/serverless';
+import { Loader2, AlertCircle, Database } from 'lucide-react';
 
 const App: React.FC = () => {
   const [entries, setEntries] = useState<HistoryEntry[]>([]);
@@ -15,122 +14,64 @@ const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Initialize Neon SQL client
-  const sql = useMemo(() => {
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) return null;
-    return neon(dbUrl);
+  useEffect(() => {
+    fetchData();
   }, []);
 
-  useEffect(() => {
-    if (sql) {
-      fetchData();
-    } else {
-      setErrorMessage("DATABASE_URL environment variable is missing. Please add your Neon connection string.");
-      setIsLoading(false);
-    }
-  }, [sql]);
-
   const fetchData = async () => {
-    if (!sql) return;
     try {
       setIsLoading(true);
-      
-      // Ensure table exists first (Initialization)
-      await sql`
-        CREATE TABLE IF NOT EXISTS history_entries (
-          id UUID PRIMARY KEY,
-          ricefw_id TEXT NOT NULL,
-          fs_name TEXT NOT NULL,
-          transaction_id TEXT,
-          region TEXT,
-          status BOOLEAN DEFAULT FALSE,
-          version TEXT NOT NULL,
-          release_reference TEXT,
-          author TEXT,
-          change_description TEXT,
-          timestamp BIGINT,
-          document_date BIGINT
-        )
-      `;
-
-      const results = await sql`
-        SELECT 
-          id, 
-          ricefw_id as "RICEFWID", 
-          fs_name as "FSNAME", 
-          transaction_id as "TransactionID", 
-          region as "Region", 
-          status as "Status", 
-          version, 
-          release_reference as "releaseReference", 
-          author, 
-          change_description as "changeDescription", 
-          timestamp,
-          document_date as "documentDate"
-        FROM history_entries 
-        ORDER BY timestamp DESC
-      `;
-
-      const formatted = results.map((d: any) => ({
-        ...d,
-        timestamp: Number(d.timestamp),
-        documentDate: Number(d.documentDate || d.timestamp),
-        Status: Boolean(d.Status)
-      }));
-
-      setEntries(formatted);
+      const response = await fetch('/.netlify/functions/history');
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch history');
+      }
+      const data = await response.json();
+      setEntries(data.map((entry: any) => ({
+        ...entry,
+        timestamp: Number(entry.timestamp),
+        documentDate: Number(entry.documentDate || entry.timestamp)
+      })));
       setErrorMessage(null);
     } catch (e: any) {
-      console.error("Database Fetch error:", e);
-      setErrorMessage(`Neon Connection Error: ${e.message || "Unknown error"}`);
+      console.error("Fetch error:", e);
+      setErrorMessage(e.message || "Could not connect to the database function.");
     } finally {
       setIsLoading(false);
     }
   };
 
   const addEntry = async (entry: HistoryEntry) => {
-    if (!sql) return;
-    setErrorMessage(null);
     try {
-      await sql`
-        INSERT INTO history_entries (
-          id, ricefw_id, fs_name, transaction_id, region, status, version, release_reference, author, change_description, timestamp, document_date
-        ) VALUES (
-          ${entry.id}, 
-          ${entry.RICEFWID}, 
-          ${entry.FSNAME}, 
-          ${entry.TransactionID || ''}, 
-          ${entry.Region || ''}, 
-          ${entry.Status}, 
-          ${entry.version}, 
-          ${entry.releaseReference || ''}, 
-          ${entry.author || 'Unknown'}, 
-          ${entry.changeDescription || ''}, 
-          ${BigInt(entry.timestamp)}, 
-          ${BigInt(entry.documentDate)}
-        )
-      `;
+      setErrorMessage(null);
+      const response = await fetch('/.netlify/functions/history', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      });
+
+      if (!response.ok) throw new Error('Failed to save version');
+      
       setEntries(prev => [entry, ...prev]);
       setActiveView(ViewMode.DASHBOARD);
     } catch (e: any) {
-      console.error("Save error:", e);
-      setErrorMessage(`Failed to commit version to Neon: ${e.message}`);
+      setErrorMessage(e.message);
     }
   };
 
   const updateEntryStatus = async (id: string, newStatus: boolean) => {
-    if (!sql) return;
     try {
-      await sql`
-        UPDATE history_entries 
-        SET status = ${newStatus}
-        WHERE id = ${id}
-      `;
+      const response = await fetch('/.netlify/functions/history', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update status');
+      
       setEntries(prev => prev.map(e => e.id === id ? { ...e, Status: newStatus } : e));
     } catch (e: any) {
-      console.error("Status update error:", e);
-      setErrorMessage(`Database Update Error: ${e.message}`);
+      setErrorMessage(e.message);
     }
   };
 
@@ -162,7 +103,7 @@ const App: React.FC = () => {
       return (
         <div className="h-96 flex flex-col items-center justify-center text-slate-400">
           <Loader2 className="animate-spin mb-4" size={32} />
-          <p className="text-sm font-bold tracking-widest uppercase opacity-50">Connecting to Neon Cloud...</p>
+          <p className="text-sm font-bold tracking-widest uppercase opacity-50">Syncing with Registry...</p>
         </div>
       );
     }
@@ -173,14 +114,14 @@ const App: React.FC = () => {
           <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-800 animate-in fade-in slide-in-from-top-2 shadow-sm">
             <AlertCircle size={20} className="shrink-0 text-red-600" />
             <div className="text-sm font-medium leading-tight flex-1">
-              <span className="block font-bold mb-0.5">Database Registry Error</span>
+              <span className="block font-bold mb-0.5">Function Registry Error</span>
               {errorMessage}
             </div>
             <button 
-              onClick={() => fetchData()} 
+              onClick={fetchData} 
               className="px-3 py-1 bg-white border border-red-200 rounded-lg text-xs font-bold text-red-600 hover:bg-red-100 transition-colors"
             >
-              Retry Sync
+              Retry
             </button>
           </div>
         )}
@@ -214,12 +155,12 @@ const App: React.FC = () => {
             <h1 className="text-xl font-bold text-slate-800 uppercase tracking-tight">
               SpecVer <span className="text-indigo-600 font-normal">v1.3</span>
             </h1>
-            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Cloud Database Registry</p>
+            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Version Documentation Proxy</p>
           </div>
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-lg">
-              <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">Neon Direct</span>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-600 border border-blue-100 rounded-lg">
+              <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">Functions Active</span>
             </div>
             <button 
               onClick={fetchData}
