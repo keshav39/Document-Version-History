@@ -1,12 +1,20 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// During build time, process.env.API_KEY might be undefined, 
+// but Vite will inject it at runtime.
+const apiKey = (process.env as any).API_KEY || "";
+const ai = new GoogleGenAI({ apiKey });
 
 export const suggestVersionAndReleaseNotes = async (
   currentVersion: string,
   changeDescription: string
 ) => {
+  if (!apiKey) {
+    console.warn("API_KEY is missing. AI suggestions will not work.");
+    return null;
+  }
+  
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
@@ -26,7 +34,7 @@ export const suggestVersionAndReleaseNotes = async (
       }
     });
 
-    return JSON.parse(response.text);
+    return JSON.parse(response.text || "{}");
   } catch (error) {
     console.error("Gemini suggestion error:", error);
     return null;
