@@ -5,9 +5,9 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "dev": "detlify",
+    "build": "tsc && netlify dev",
+    "preview": "netlify preview"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
