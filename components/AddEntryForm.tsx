@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { HistoryEntry, DocumentSummary } from '../types';
 import { suggestVersionAndReleaseNotes } from '../geminiService';
-import { Sparkles, Loader2, Save, AlertCircle, Info, Hash, Globe, CheckCircle } from 'lucide-react';
+import { Sparkles, Loader2, Save, AlertCircle, Info, Hash, Globe, CheckCircle, Calendar } from 'lucide-react';
 
 interface AddEntryFormProps {
   onAdd: (entry: HistoryEntry) => void;
@@ -23,6 +23,7 @@ const AddEntryForm: React.FC<AddEntryFormProps> = ({ onAdd, existingSummaries })
   const [releaseRef, setReleaseRef] = useState('');
   const [author, setAuthor] = useState('');
   const [description, setDescription] = useState('');
+  const [docDate, setDocDate] = useState(new Date().toISOString().split('T')[0]);
   
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [suggestionData, setSuggestionData] = useState<any>(null);
@@ -82,7 +83,8 @@ const AddEntryForm: React.FC<AddEntryFormProps> = ({ onAdd, existingSummaries })
       releaseReference: releaseRef,
       author,
       changeDescription: description,
-      timestamp: Date.now()
+      timestamp: Date.now(),
+      documentDate: new Date(docDate).getTime()
     };
 
     onAdd(newEntry);
@@ -143,6 +145,20 @@ const AddEntryForm: React.FC<AddEntryFormProps> = ({ onAdd, existingSummaries })
                   ))}
                 </select>
               )}
+            </div>
+
+            {/* Document Update Date */}
+            <div className="space-y-2 col-span-2">
+              <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                <Calendar size={12}/> Document Update Date
+              </label>
+              <input 
+                type="date"
+                className="w-full px-4 py-2.5 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-sm"
+                value={docDate}
+                onChange={e => setDocDate(e.target.value)}
+              />
+              <p className="text-[10px] text-slate-400 italic">Specify the actual date the modifications were finalized in the document.</p>
             </div>
 
             {/* Transaction and Region */}

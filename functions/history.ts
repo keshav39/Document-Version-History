@@ -22,7 +22,8 @@ export const handler = async (event: any) => {
           release_reference as "releaseReference", 
           author, 
           change_description as "changeDescription", 
-          timestamp 
+          timestamp,
+          document_date as "documentDate"
         FROM history_entries 
         ORDER BY timestamp DESC
       `;
@@ -36,14 +37,27 @@ export const handler = async (event: any) => {
       const data = JSON.parse(event.body);
       await sql`
         INSERT INTO history_entries (
-          id, ricefw_id, fs_name, transaction_id, region, status, version, release_reference, author, change_description, timestamp
+          id, ricefw_id, fs_name, transaction_id, region, status, version, release_reference, author, change_description, timestamp, document_date
         ) VALUES (
-          ${data.id}, ${data.RICEFWID}, ${data.FSNAME}, ${data.TransactionID}, ${data.Region}, ${data.Status}, ${data.version}, ${data.releaseReference}, ${data.author}, ${data.changeDescription}, ${data.timestamp}
+          ${data.id}, ${data.RICEFWID}, ${data.FSNAME}, ${data.TransactionID}, ${data.Region}, ${data.Status}, ${data.version}, ${data.releaseReference}, ${data.author}, ${data.changeDescription}, ${data.timestamp}, ${data.documentDate}
         )
       `;
       return {
         statusCode: 201,
         body: JSON.stringify({ message: 'Entry saved successfully' }),
+      };
+    }
+
+    if (method === 'PATCH') {
+      const { id, status } = JSON.parse(event.body);
+      await sql`
+        UPDATE history_entries 
+        SET status = ${status}
+        WHERE id = ${id}
+      `;
+      return {
+        statusCode: 200,
+        body: JSON.stringify({ message: 'Status updated successfully' }),
       };
     }
 

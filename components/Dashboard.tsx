@@ -1,14 +1,15 @@
 
 import React, { useState } from 'react';
 import { DocumentSummary } from '../types';
-import { Search, ExternalLink, Calendar, Hash, Globe, CheckCircle2, XCircle } from 'lucide-react';
+import { Search, ExternalLink, Calendar, Hash, Globe, CheckCircle2, XCircle, FileClock, CloudUpload } from 'lucide-react';
 
 interface DashboardProps {
   summaries: DocumentSummary[];
   onAddClick: () => void;
+  onUpdateStatus: (id: string, status: boolean) => void;
 }
 
-const Dashboard: React.FC<DashboardProps> = ({ summaries, onAddClick }) => {
+const Dashboard: React.FC<DashboardProps> = ({ summaries, onAddClick, onUpdateStatus }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filtered = summaries.filter(s => 
@@ -46,7 +47,7 @@ const Dashboard: React.FC<DashboardProps> = ({ summaries, onAddClick }) => {
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Functional Object (RICEFW)</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Context & Status</th>
               <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Lifecycle</th>
-              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+              <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Quick Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -92,17 +93,28 @@ const Dashboard: React.FC<DashboardProps> = ({ summaries, onAddClick }) => {
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center gap-2 text-slate-500">
-                      <Calendar size={14} />
+                      <Calendar size={14} className="text-indigo-400" />
                       <div className="flex flex-col">
-                        <span className="text-xs">{new Date(item.lastUpdated).toLocaleDateString()}</span>
-                        <span className="text-[10px] text-slate-400">Iter: {item.historyCount}</span>
+                        <span className="text-xs font-medium text-slate-700">{new Date(item.documentDate).toLocaleDateString()}</span>
+                        <span className="text-[10px] text-slate-400 flex items-center gap-1"><FileClock size={8}/> Iter: {item.historyCount}</span>
                       </div>
                     </div>
                   </td>
                   <td className="px-6 py-4 text-right">
-                    <button className="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-all opacity-0 group-hover:opacity-100">
-                      <ExternalLink size={18} />
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button 
+                        onClick={() => onUpdateStatus(item.latestEntryId, !item.Status)}
+                        className={`p-2 rounded-lg transition-all flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-tight ${
+                          item.Status 
+                          ? 'bg-slate-100 text-slate-400 hover:bg-slate-200' 
+                          : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                        }`}
+                        title={item.Status ? "Mark as Pending Upload" : "Mark as Uploaded to SharePoint"}
+                      >
+                        <CloudUpload size={14} />
+                        {item.Status ? "Revert Status" : "Mark Uploaded"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))

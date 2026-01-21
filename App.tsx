@@ -15,28 +15,29 @@ const App: React.FC = () => {
 
   // Load data from API
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setIsLoading(true);
-        const response = await fetch('/.netlify/functions/history');
-        if (response.ok) {
-          const data = await response.json();
-          // Ensure numbers/booleans are correctly typed if needed
-          const formatted = data.map((d: any) => ({
-            ...d,
-            timestamp: Number(d.timestamp),
-            Status: Boolean(d.Status)
-          }));
-          setEntries(formatted);
-        }
-      } catch (e) {
-        console.error("Failed to fetch history", e);
-      } finally {
-        setIsLoading(false);
-      }
-    };
     fetchData();
   }, []);
+
+  const fetchData = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/.netlify/functions/history');
+      if (response.ok) {
+        const data = await response.json();
+        const formatted = data.map((d: any) => ({
+          ...d,
+          timestamp: Number(d.timestamp),
+          documentDate: Number(d.documentDate || d.timestamp),
+          Status: Boolean(d.Status)
+        }));
+        setEntries(formatted);
+      }
+    } catch (e) {
+      console.error("Failed to fetch history", e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const addEntry = async (entry: HistoryEntry) => {
     try {
@@ -58,6 +59,24 @@ const App: React.FC = () => {
     }
   };
 
+  const updateEntryStatus = async (id: string, newStatus: boolean) => {
+    try {
+      const response = await fetch('/.netlify/functions/history', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, status: newStatus }),
+      });
+
+      if (response.ok) {
+        setEntries(prev => prev.map(e => e.id === id ? { ...e, Status: newStatus } : e));
+      } else {
+        alert("Failed to update status.");
+      }
+    } catch (e) {
+      console.error("Error updating status", e);
+    }
+  };
+
   const documentSummaries = useMemo((): DocumentSummary[] => {
     const map = new Map<string, DocumentSummary>();
     
@@ -71,7 +90,9 @@ const App: React.FC = () => {
         currentVersion: entry.version,
         lastRelease: entry.releaseReference,
         lastUpdated: entry.timestamp,
-        historyCount: (map.get(entry.RICEFWID)?.historyCount || 0) + 1
+        documentDate: entry.documentDate,
+        historyCount: (map.get(entry.RICEFWID)?.historyCount || 0) + 1,
+        latestEntryId: entry.id
       });
     });
 
@@ -90,7 +111,7 @@ const App: React.FC = () => {
 
     switch (activeView) {
       case ViewMode.DASHBOARD:
-        return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} />;
+        return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} onUpdateStatus={updateEntryStatus} />;
       case ViewMode.HISTORY:
         return <HistoryLog entries={entries} />;
       case ViewMode.ADD_ENTRY:
@@ -104,7 +125,7 @@ const App: React.FC = () => {
           </div>
         );
       default:
-        return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} />;
+        return <Dashboard summaries={documentSummaries} onAddClick={() => setActiveView(ViewMode.ADD_ENTRY)} onUpdateStatus={updateEntryStatus} />;
     }
   };
 

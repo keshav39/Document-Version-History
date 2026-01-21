@@ -10,7 +10,8 @@ export interface HistoryEntry {
   releaseReference: string;
   author: string;
   changeDescription: string;
-  timestamp: number;
+  timestamp: number; // System log time
+  documentDate: number; // Actual date the document was updated
 }
 
 export interface DocumentSummary {
@@ -22,7 +23,9 @@ export interface DocumentSummary {
   currentVersion: string;
   lastRelease: string;
   lastUpdated: number;
+  documentDate: number;
   historyCount: number;
+  latestEntryId: string; // Needed for updating status
 }
 
 export enum ViewMode {

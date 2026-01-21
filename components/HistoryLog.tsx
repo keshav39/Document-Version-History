@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { HistoryEntry } from '../types';
-import { Clock, User, ChevronDown, ChevronUp, FileText, Globe, Hash, CheckCircle2, XCircle } from 'lucide-react';
+import { Clock, User, ChevronDown, ChevronUp, FileText, Globe, Hash, CheckCircle2, XCircle, Calendar } from 'lucide-react';
 
 interface HistoryLogProps {
   entries: HistoryEntry[];
@@ -44,7 +44,8 @@ const HistoryLog: React.FC<HistoryLogProps> = ({ entries }) => {
                       <div className="flex items-center gap-4 text-xs text-slate-400">
                         <span className="flex items-center gap-1 font-medium text-slate-500 uppercase tracking-tight">{entry.releaseReference}</span>
                         <span className="flex items-center gap-1"><User size={12} /> {entry.author}</span>
-                        <span className="flex items-center gap-1"><Clock size={12} /> {new Date(entry.timestamp).toLocaleString()}</span>
+                        <span className="flex items-center gap-1 text-indigo-500 font-semibold"><Calendar size={12} /> Doc: {new Date(entry.documentDate).toLocaleDateString()}</span>
+                        <span className="flex items-center gap-1 opacity-60"><Clock size={12} /> Log: {new Date(entry.timestamp).toLocaleString()}</span>
                       </div>
                     </div>
                     {expandedId === entry.id ? <ChevronUp size={18} className="text-slate-400" /> : <ChevronDown size={18} className="text-slate-400" />}
