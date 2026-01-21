@@ -6,7 +6,7 @@ let sql: any;
 function getSql() {
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    throw new Error("DATABASE_URL is not configured. Please add it to your environment variables.");
+    throw new Error("DATABASE_URL is not set in environment variables.");
   }
   
   if (!sql) {
@@ -61,12 +61,10 @@ export const handler = async (event: any) => {
           body: JSON.stringify(entries),
         };
       } catch (dbError: any) {
+        console.error("Fetch Error:", dbError.message);
         if (dbError.message.includes('does not exist')) {
-          return {
-            statusCode: 200,
-            headers,
-            body: JSON.stringify([]),
-          };
+          // Table missing is okay, return empty list
+          return { statusCode: 200, headers, body: JSON.stringify([]) };
         }
         throw dbError;
       }
@@ -92,40 +90,28 @@ export const handler = async (event: any) => {
           ${data.documentDate ? BigInt(data.documentDate) : BigInt(data.timestamp || Date.now())}
         )
       `;
-      return {
-        statusCode: 201,
-        headers,
-        body: JSON.stringify({ message: 'Success' }),
-      };
+      return { statusCode: 201, headers, body: JSON.stringify({ status: 'ok' }) };
     }
 
     if (method === 'PATCH') {
       const { id, status } = JSON.parse(event.body);
-      await db`
-        UPDATE history_entries 
-        SET status = ${!!status}
-        WHERE id = ${id}
-      `;
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({ message: 'Updated' }),
-      };
+      await db`UPDATE history_entries SET status = ${!!status} WHERE id = ${id}`;
+      return { statusCode: 200, headers, body: JSON.stringify({ status: 'updated' }) };
     }
 
     return { 
       statusCode: 405, 
-      headers,
+      headers, 
       body: JSON.stringify({ error: `Method ${method} Not Allowed` }) 
     };
   } catch (error: any) {
-    console.error('API Error:', error.message);
+    console.error('API Fail:', error.message);
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
-        error: error.message || "Database request failed",
-        detail: "Ensure DATABASE_URL is correct and the 'history_entries' table is migrated."
+        error: error.message || "Neon connectivity failed",
+        code: "NEON_SYNC_FAIL"
       }),
     };
   }
