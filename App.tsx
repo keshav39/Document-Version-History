@@ -22,8 +22,9 @@ const App: React.FC = () => {
     try {
       setIsLoading(true);
       const response = await fetch('/.netlify/functions/history');
+      const contentType = response.headers.get('content-type');
       
-      if (response.ok) {
+      if (response.ok && contentType && contentType.includes('application/json')) {
         const data = await response.json();
         const formatted = data.map((d: any) => ({
           ...d,
@@ -32,26 +33,29 @@ const App: React.FC = () => {
           Status: Boolean(d.Status)
         }));
         setEntries(formatted);
+        setErrorMessage(null);
       } else {
-        // Clone the response so we can read it twice if needed
         const clonedResponse = response.clone();
-        let errorMsg = `Server error ${response.status}`;
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorData.detail || errorMsg;
-        } catch (e) {
+        let errorDetail = `Status ${response.status}`;
+        
+        if (contentType && contentType.includes('text/html')) {
+          errorDetail = "The server returned HTML instead of JSON. This usually means the Netlify function is not running or the path is incorrect. Use 'netlify dev' to run locally.";
+        } else {
           try {
-            const text = await clonedResponse.text();
-            if (text) errorMsg = text.slice(0, 100);
-          } catch (textError) {
-            console.error("Could not read error text", textError);
+            const errorData = await response.json();
+            errorDetail = errorData.error || errorData.detail || errorDetail;
+          } catch (e) {
+            try {
+              const text = await clonedResponse.text();
+              errorDetail = text.slice(0, 150) || errorDetail;
+            } catch (textError) {}
           }
         }
-        setErrorMessage(`Failed to load: ${errorMsg}`);
+        setErrorMessage(`Registry Sync Error: ${errorDetail}`);
       }
     } catch (e) {
       console.error("Fetch error:", e);
-      setErrorMessage("Network error: Check your internet connection or if the backend functions are deployed.");
+      setErrorMessage("Network error: Could not connect to the backend server. Verify your internet and server status.");
     } finally {
       setIsLoading(false);
     }
@@ -66,27 +70,34 @@ const App: React.FC = () => {
         body: JSON.stringify(entry),
       });
 
+      const contentType = response.headers.get('content-type');
+
       if (response.ok) {
         setEntries(prev => [entry, ...prev]);
         setActiveView(ViewMode.DASHBOARD);
       } else {
         const clonedResponse = response.clone();
         let errorMsg = "Database rejection";
-        try {
-          const errorData = await response.json();
-          errorMsg = errorData.error || errorData.detail || errorMsg;
-        } catch (e) {
+        
+        if (contentType && contentType.includes('text/html')) {
+          errorMsg = "Server endpoint returned HTML. The save function might be crashing or missing.";
+        } else {
           try {
-            const text = await clonedResponse.text();
-            if (text) errorMsg = text.slice(0, 200);
-          } catch (textError) {}
+            const errorData = await response.json();
+            errorMsg = errorData.error || errorData.detail || errorMsg;
+          } catch (e) {
+            try {
+              const text = await clonedResponse.text();
+              errorMsg = text.slice(0, 200);
+            } catch (textError) {}
+          }
         }
         setErrorMessage(`Save Failed: ${errorMsg}`);
-        alert(`Save Failed: ${errorMsg}\n\nVerify that the 'document_date' column exists in your table.`);
+        alert(`Save Failed: ${errorMsg}\n\nCheck your DATABASE_URL and ensure the 'history_entries' table and 'document_date' column exist.`);
       }
     } catch (e: any) {
       console.error("Save error:", e);
-      setErrorMessage("Network error: Could not reach the server function to save data.");
+      setErrorMessage("Network error: Server unreachable during save attempt.");
     }
   };
 
@@ -109,7 +120,7 @@ const App: React.FC = () => {
         } catch (e) {
           try {
             const text = await clonedResponse.text();
-            if (text) errorMsg = text.slice(0, 100);
+            errorMsg = text.slice(0, 100);
           } catch (textError) {}
         }
         alert(`Update Failed: ${errorMsg}`);
@@ -143,7 +154,7 @@ const App: React.FC = () => {
   }, [entries]);
 
   const renderContent = () => {
-    if (isLoading) {
+    if (isLoading && entries.length === 0) {
       return (
         <div className="h-96 flex flex-col items-center justify-center text-slate-400">
           <Loader2 className="animate-spin mb-4" size={32} />
@@ -155,10 +166,13 @@ const App: React.FC = () => {
     return (
       <div className="space-y-6">
         {errorMessage && (
-          <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700 animate-in fade-in slide-in-from-top-2">
+          <div className="bg-red-50 border border-red-200 p-4 rounded-xl flex items-center gap-3 text-red-700 animate-in fade-in slide-in-from-top-2 shadow-sm">
             <AlertCircle size={20} className="shrink-0" />
-            <div className="text-sm font-medium">{errorMessage}</div>
-            <button onClick={() => setErrorMessage(null)} className="ml-auto text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100">Dismiss</button>
+            <div className="text-sm font-medium leading-tight">
+              <span className="font-bold block mb-0.5">Connectivity Issue</span>
+              {errorMessage}
+            </div>
+            <button onClick={() => setErrorMessage(null)} className="ml-auto text-xs font-bold uppercase tracking-widest opacity-50 hover:opacity-100 p-2">Dismiss</button>
           </div>
         )}
 

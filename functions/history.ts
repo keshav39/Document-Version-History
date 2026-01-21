@@ -1,18 +1,21 @@
 
 import postgres from 'postgres';
 
-// Initialize SQL connection lazily
+// Initialize SQL connection lazily to handle missing ENV variables gracefully
 let sql: any;
 
 function getSql() {
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    throw new Error("DATABASE_URL environment variable is missing in Netlify settings.");
+  }
+  
   if (!sql) {
-    const dbUrl = process.env.DATABASE_URL;
-    if (!dbUrl) {
-      throw new Error("DATABASE_URL environment variable is not defined in Netlify settings.");
-    }
     sql = postgres(dbUrl, {
       ssl: 'require',
       connect_timeout: 10,
+      idle_timeout: 20,
+      max: 1
     });
   }
   return sql;
@@ -20,43 +23,62 @@ function getSql() {
 
 export const handler = async (event: any) => {
   const method = event.httpMethod;
+  
+  // Standard headers for all responses
+  const headers = { 
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type'
+  };
+
+  // Handle CORS preflight
+  if (method === 'OPTIONS') {
+    return { statusCode: 204, headers };
+  }
 
   try {
-    // Ensure the database connection is initialized within the try block
     const db = getSql();
 
     if (method === 'GET') {
-      const entries = await db`
-        SELECT 
-          id, 
-          ricefw_id as "RICEFWID", 
-          fs_name as "FSNAME", 
-          transaction_id as "TransactionID", 
-          region as "Region", 
-          status as "Status", 
-          version, 
-          release_reference as "releaseReference", 
-          author, 
-          change_description as "changeDescription", 
-          timestamp,
-          document_date as "documentDate"
-        FROM history_entries 
-        ORDER BY timestamp DESC
-      `;
-      return {
-        statusCode: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*' 
-        },
-        body: JSON.stringify(entries),
-      };
+      try {
+        const entries = await db`
+          SELECT 
+            id, 
+            ricefw_id as "RICEFWID", 
+            fs_name as "FSNAME", 
+            transaction_id as "TransactionID", 
+            region as "Region", 
+            status as "Status", 
+            version, 
+            release_reference as "releaseReference", 
+            author, 
+            change_description as "changeDescription", 
+            timestamp,
+            document_date as "documentDate"
+          FROM history_entries 
+          ORDER BY timestamp DESC
+        `;
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify(entries),
+        };
+      } catch (dbError: any) {
+        if (dbError.message.includes('does not exist')) {
+          return {
+            statusCode: 200, // Return empty list instead of 500 if table missing
+            headers,
+            body: JSON.stringify([]),
+          };
+        }
+        throw dbError;
+      }
     }
 
     if (method === 'POST') {
       const data = JSON.parse(event.body);
-      
-      console.log("Inserting entry:", data.RICEFWID);
+      console.log("POST: Inserting", data.RICEFWID);
 
       await db`
         INSERT INTO history_entries (
@@ -79,10 +101,7 @@ export const handler = async (event: any) => {
 
       return {
         statusCode: 201,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*' 
-        },
+        headers,
         body: JSON.stringify({ message: 'Entry saved successfully' }),
       };
     }
@@ -96,31 +115,25 @@ export const handler = async (event: any) => {
       `;
       return {
         statusCode: 200,
-        headers: { 
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*' 
-        },
+        headers,
         body: JSON.stringify({ message: 'Status updated successfully' }),
       };
     }
 
     return { 
       statusCode: 405, 
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Method Not Allowed' }) 
+      headers,
+      body: JSON.stringify({ error: `Method ${method} Not Allowed` }) 
     };
   } catch (error: any) {
-    console.error('Function Error:', error.message);
+    console.error('Function Execution Error:', error.message);
 
     return {
       statusCode: 500,
-      headers: { 
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*' 
-      },
+      headers,
       body: JSON.stringify({ 
         error: error.message || "Internal Server Error",
-        detail: "Check if DATABASE_URL is set and the 'document_date' column (BIGINT) exists in your 'history_entries' table."
+        detail: "This usually means the database URL is wrong or the table schema is missing the 'document_date' column."
       }),
     };
   }
