@@ -1,0 +1,5 @@
+{
+  "name": "SpecVer: Functional Documentation Version Manager",
+  "description": "A robust tool to track and manage version histories of functional specification objects against specific release references, featuring append-only logging and AI-powered impact analysis.",
+  "requestFramePermissions": []
+}
